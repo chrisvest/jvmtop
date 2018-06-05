@@ -21,6 +21,8 @@ import com.jvmtop.monitor.VMInfo;
 
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.lang.reflect.UndeclaredThrowableException;
+import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -69,7 +71,18 @@ public class CPUSampler {
 
   public void update() throws Exception {
     boolean samplesAcquired = false;
-    for (ThreadInfo ti : threadMxBean.dumpAllThreads(false, false)) {
+    ThreadInfo[] threadInfos = new ThreadInfo[0];
+    try {
+      threadInfos = threadMxBean.dumpAllThreads(false, false);
+    } catch (UndeclaredThrowableException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof ConnectException
+          || cause instanceof java.rmi.ConnectException) {
+        System.out.println("ERROR: Attach connection failure - process terminated?");
+        System.exit(1);
+      }
+    }
+    for (ThreadInfo ti : threadInfos) {
       long cpuTime = threadMxBean.getThreadCpuTime(ti.getThreadId());
       Long tCPUTime = threadCPUTime.get(ti.getThreadId());
       if (tCPUTime != null) {
