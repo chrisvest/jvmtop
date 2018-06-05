@@ -20,13 +20,13 @@
  */
 package com.jvmtop.view;
 
-import java.util.Iterator;
-
 import com.jvmtop.monitor.VMInfo;
 import com.jvmtop.monitor.VMInfoState;
 import com.jvmtop.openjdk.tools.LocalVirtualMachine;
 import com.jvmtop.profiler.CPUSampler;
 import com.jvmtop.profiler.MethodStats;
+
+import java.util.Iterator;
 
 /**
  * CPU sampling-based profiler view which shows methods with top CPU usage.
@@ -98,29 +98,9 @@ public class VMProfileView extends AbstractConsoleView
         System.out.printf(" %6.2f%% (%9.2fs) %s()%n", wallRatio, wallRatio
             / 100d
             * cpuSampler_.getUpdateCount() * 0.1d,
-            shortFQN(stats.getClassName(), stats.getMethodName(), w));
+                stats.getClassName() + "." + stats.getMethodName() );
       }
     }
-  }
-
-  /**
-   * Shortens a full qualified class name if it exceeds the size.
-   * TODO: improve method to shorten middle packages first,
-   * maybe abbreviating the package by its first character.
-   *
-   * @param fqn
-   * @param method
-   * @param size
-   * @return
-   */
-  private String shortFQN(String fqn, String method, int size)
-  {
-    String line = fqn + "." + method;
-    if (line.length() > size)
-    {
-      line = "..." + line.substring(3, size);
-    }
-    return line;
   }
 
 }
