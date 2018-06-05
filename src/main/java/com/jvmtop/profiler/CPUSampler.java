@@ -17,7 +17,8 @@
  */
 package com.jvmtop.profiler;
 
-import java.lang.Thread.State;
+import com.jvmtop.monitor.VMInfo;
+
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.jvmtop.monitor.VMInfo;
+import static java.lang.Thread.State.RUNNABLE;
 
 /**
  * Experimental and very basic sampling-based CPU-Profiler.
@@ -37,112 +38,74 @@ import com.jvmtop.monitor.VMInfo;
  * distort application problems.
  *
  * @author paru
- *
  */
-public class CPUSampler
-{
-  private ThreadMXBean                          threadMxBean_ = null;
-
-  private ConcurrentMap<String, MethodStats> data_         = new ConcurrentHashMap<String, MethodStats>();
-
-  private long                               beginCPUTime_ = 0;
-
-  private AtomicLong                         totalThreadCPUTime_ = new AtomicLong(
-                                                                     0);
-
-
+public class CPUSampler {
   //TODO: these exception list should be expanded to the most common 3rd-party library packages
-  private List<String>                       filter        = Arrays
-                                                               .asList(new String[] {
+  private List<String> filter = Arrays.asList(
       "org.eclipse.", "org.apache.", "java.", "sun.", "com.sun.", "javax.",
       "oracle.", "com.trilead.", "org.junit.", "org.mockito.",
-      "org.hibernate.", "com.ibm.", "com.caucho."
+      "org.hibernate.", "com.ibm.", "com.caucho.");
 
-                                                                     });
+  private ThreadMXBean threadMxBean;
+  private ConcurrentMap<String, MethodStats> data = new ConcurrentHashMap<>();
+  private ConcurrentMap<Long, Long> threadCPUTime = new ConcurrentHashMap<>();
+  private AtomicLong totalThreadCPUTime = new AtomicLong();
+  private AtomicLong updateCount = new AtomicLong();
 
-  private ConcurrentMap<Long, Long>          threadCPUTime = new ConcurrentHashMap<Long, Long>();
-
-  private AtomicLong                         updateCount_       = new AtomicLong(
-                                                                     0);
-
-  private VMInfo                             vmInfo_;
-
-  /**
-   * @param threadMxBean
-   * @throws Exception
-   */
-  public CPUSampler(VMInfo vmInfo) throws Exception
-  {
+  public CPUSampler(VMInfo vmInfo) throws Exception {
     super();
-    threadMxBean_ = vmInfo.getThreadMXBean();
-    beginCPUTime_ = vmInfo.getProxyClient().getProcessCpuTime();
-    vmInfo_ = vmInfo;
+    threadMxBean = vmInfo.getThreadMXBean();
   }
 
-  public List<MethodStats> getTop(int limit)
-  {
-    ArrayList<MethodStats> statList = new ArrayList<MethodStats>(data_.values());
+  public List<MethodStats> getTop(int limit) {
+    ArrayList<MethodStats> statList = new ArrayList<>(data.values());
     Collections.sort(statList);
     return statList.subList(0, Math.min(limit, statList.size()));
   }
 
-  public long getTotal()
-  {
-    return totalThreadCPUTime_.get();
+  public long getTotal() {
+    return totalThreadCPUTime.get();
   }
 
-  public void update() throws Exception
-  {
+  public void update() throws Exception {
     boolean samplesAcquired = false;
-    for (ThreadInfo ti : threadMxBean_.dumpAllThreads(false, false))
-    {
-      long cpuTime = threadMxBean_.getThreadCpuTime(ti.getThreadId());
+    for (ThreadInfo ti : threadMxBean.dumpAllThreads(false, false)) {
+      long cpuTime = threadMxBean.getThreadCpuTime(ti.getThreadId());
       Long tCPUTime = threadCPUTime.get(ti.getThreadId());
-      if (tCPUTime == null)
-      {
-        tCPUTime = 0L;
-      }
-      else
-      {
-      Long deltaCpuTime = (cpuTime - tCPUTime);
+      if (tCPUTime != null) {
+        Long deltaCpuTime = (cpuTime - tCPUTime);
 
-      if (ti.getStackTrace().length > 0
-          && ti.getThreadState() == State.RUNNABLE
-            ) {
-          for (StackTraceElement stElement : ti.getStackTrace()) {
-            if (isReallySleeping(stElement)) {
+        if (ti.getStackTrace().length > 0 && ti.getThreadState() == RUNNABLE) {
+          for (StackTraceElement frame : ti.getStackTrace()) {
+            if (isReallySleeping(frame)) {
               break;
             }
-            if (isFiltered(stElement)) {
-            continue;
-          }
-          String key = stElement.getClassName() + "."
-              + stElement.getMethodName();
-          data_.putIfAbsent(key, new MethodStats(stElement.getClassName(),
-              stElement.getMethodName()));
-          data_.get(key).getHits().addAndGet(deltaCpuTime);
-          totalThreadCPUTime_.addAndGet(deltaCpuTime);
+            if (isFiltered(frame)) {
+              continue;
+            }
+            String key = frame.getClassName() + "." + frame.getMethodName();
+            data.putIfAbsent(key, new MethodStats(frame));
+            data.get(key).getHits().addAndGet(deltaCpuTime);
+            totalThreadCPUTime.addAndGet(deltaCpuTime);
             samplesAcquired = true;
-          break;
+            break;
+          }
         }
-      }
       }
       threadCPUTime.put(ti.getThreadId(), cpuTime);
     }
-    if (samplesAcquired)
-{
-  updateCount_.incrementAndGet();
-}
+    if (samplesAcquired) {
+      updateCount.incrementAndGet();
+    }
   }
 
-  public Long getUpdateCount()
-  {
-    return updateCount_.get();
+  public Long getUpdateCount() {
+    return updateCount.get();
   }
 
   private boolean isReallySleeping(StackTraceElement se) {
     return se.getClassName().equals("sun.nio.ch.EPollArrayWrapper") &&
-          se.getMethodName().equals("epollWait");
+        se.getMethodName().equals("epollWait");
   }
 
   public boolean isFiltered(StackTraceElement se) {

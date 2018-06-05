@@ -23,109 +23,68 @@ import java.util.concurrent.atomic.AtomicLong;
  * Stores method invocations in a thread-safe manner.
  *
  * @author paru
- *
  */
-public class MethodStats implements Comparable<MethodStats>
-{
-  private AtomicLong hits_       = new AtomicLong(0);
+public class MethodStats implements Comparable<MethodStats> {
+  private AtomicLong hits = new AtomicLong();
+  private String className;
+  private String methodName;
 
-  private String        className_  = null;
-
-  private String        methodName_ = null;
-
-  /**
-   * @param className
-   * @param methodName
-   */
-  public MethodStats(String className, String methodName)
-  {
-    super();
-    className_ = className;
-    methodName_ = methodName;
+  public MethodStats(StackTraceElement frame) {
+    className = frame.getClassName();
+    methodName = frame.getMethodName();
   }
 
-
   @Override
-  public int hashCode()
-  {
+  public int hashCode() {
     final int prime = 31;
     int result = 1;
-    result = prime * result
-        + ((className_ == null) ? 0 : className_.hashCode());
-    result = prime * result
-        + ((methodName_ == null) ? 0 : methodName_.hashCode());
+    result = prime * result + ((className == null) ? 0 : className.hashCode());
+    result = prime * result + ((methodName == null) ? 0 : methodName.hashCode());
     return result;
   }
 
-
-
   @Override
-  public boolean equals(Object obj)
-  {
-    if (this == obj)
-    {
+  public boolean equals(Object obj) {
+    if (this == obj) {
       return true;
     }
-    if (obj == null)
-    {
+    if (obj == null) {
       return false;
     }
-    if (getClass() != obj.getClass())
-    {
+    if (getClass() != obj.getClass()) {
       return false;
     }
     MethodStats other = (MethodStats) obj;
-    if (className_ == null)
-    {
-      if (other.className_ != null)
-      {
+    if (className == null) {
+      if (other.className != null) {
         return false;
       }
-    }
-    else if (!className_.equals(other.className_))
-    {
+    } else if (!className.equals(other.className)) {
       return false;
     }
-    if (methodName_ == null)
-    {
-      if (other.methodName_ != null)
-      {
-        return false;
-      }
+    if (methodName == null) {
+      return other.methodName == null;
     }
-    else if (!methodName_.equals(other.methodName_))
-    {
-      return false;
-    }
-    return true;
+    return methodName.equals(other.methodName);
   }
 
-
-
-  @Override
   /**
    * Compares a MethodStats object by its hits
    */
-  public int compareTo(MethodStats o)
-  {
-    return Long.valueOf(o.hits_.get()).compareTo(hits_.get());
+  @Override
+  public int compareTo(MethodStats o) {
+    return Long.compare(o.hits.get(), hits.get());
   }
 
-  public AtomicLong getHits()
-  {
-    return hits_;
+  public AtomicLong getHits() {
+    return hits;
   }
 
-  public String getClassName()
-  {
-    return className_;
+  public String getClassName() {
+    return className;
   }
 
-  public String getMethodName()
-  {
-    return methodName_;
+  public String getMethodName() {
+    return methodName;
   }
-
-
-
 }
